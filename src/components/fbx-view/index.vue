@@ -11,53 +11,38 @@
     <!-- 悬浮标签，显示 Hover 名称 -->
     <div v-if="hoverName" :style="labelStyle" class="name-label">{{ hoverName }}</div>
 
-    <!-- 右上角悬浮调试面板 -->
+    <!-- 新增：调试面板 -->
     <div class="debug-panel">
       <h4>调试面板</h4>
-
-      <section>
-        <h5>模型位置</h5>
-        <label>X: <input type="number" step="0.1" v-model.number="modelPosition.x"
-            @input="updateModelPosition" /></label>
-        <label>Y: <input type="number" step="0.1" v-model.number="modelPosition.y"
-            @input="updateModelPosition" /></label>
-        <label>Z: <input type="number" step="0.1" v-model.number="modelPosition.z"
-            @input="updateModelPosition" /></label>
-      </section>
-
-      <section>
-        <h5>模型缩放</h5>
-        <label>X: <input type="number" step="0.01" min="0.01" v-model.number="modelScale.x"
-            @input="updateModelScale" /></label>
-        <label>Y: <input type="number" step="0.01" min="0.01" v-model.number="modelScale.y"
-            @input="updateModelScale" /></label>
-        <label>Z: <input type="number" step="0.01" min="0.01" v-model.number="modelScale.z"
-            @input="updateModelScale" /></label>
-      </section>
-
-      <section>
-        <h5>相机位置</h5>
-        <label>X: <input type="number" step="0.1" v-model.number="cameraPosition.x"
-            @input="updateCameraPosition" /></label>
-        <label>Y: <input type="number" step="0.1" v-model.number="cameraPosition.y"
-            @input="updateCameraPosition" /></label>
-        <label>Z: <input type="number" step="0.1" v-model.number="cameraPosition.z"
-            @input="updateCameraPosition" /></label>
-      </section>
-
-      <section>
-        <h5>相机目标（观测点）</h5>
-        <label>X: <input type="number" step="0.1" v-model.number="cameraTarget.x" @input="updateCameraTarget" /></label>
-        <label>Y: <input type="number" step="0.1" v-model.number="cameraTarget.y" @input="updateCameraTarget" /></label>
-        <label>Z: <input type="number" step="0.1" v-model.number="cameraTarget.z" @input="updateCameraTarget" /></label>
-      </section>
-
-      <section>
-        <h5>底图大小</h5>
-        <label>
-          <input type="number" min="1" v-model.number="groundSize" @input="updateGroundSize" /> (边长)
-        </label>
-      </section>
+      <div class="group">
+        <label>模型位置 X: <input type="number" v-model.number="debug.modelPosX" step="1" /></label>
+        <label>Y: <input type="number" v-model.number="debug.modelPosY" step="1" /></label>
+        <label>Z: <input type="number" v-model.number="debug.modelPosZ" step="1" /></label>
+      </div>
+      <div class="group">
+        <label>缩放比例: <input type="range" min="0.1" max="10" step="0.1" v-model.number="debug.modelScale" /></label>
+        <span>{{ debug.modelScale.toFixed(1) }}</span>
+      </div>
+      <div class="group">
+        <label>Y轴旋转: <input type="range" min="0" max="360" step="1" v-model.number="debug.modelRotationY" /></label>
+        <span>{{ debug.modelRotationY }}°</span>
+      </div>
+      <hr />
+      <div class="group">
+        <label>相机位置 X: <input type="number" v-model.number="debug.cameraPosX" step="1" /></label>
+        <label>Y: <input type="number" v-model.number="debug.cameraPosY" step="1" /></label>
+        <label>Z: <input type="number" v-model.number="debug.cameraPosZ" step="1" /></label>
+      </div>
+      <div class="group">
+        <label>相机目标 X: <input type="number" v-model.number="debug.cameraTargetX" step="1" /></label>
+        <label>Y: <input type="number" v-model.number="debug.cameraTargetY" step="1" /></label>
+        <label>Z: <input type="number" v-model.number="debug.cameraTargetZ" step="1" /></label>
+      </div>
+      <hr />
+      <div class="group">
+        <label>底图大小: <input type="range" min="10" max="2000" step="10" v-model.number="debug.groundSize" /></label>
+        <span>{{ debug.groundSize }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -92,6 +77,7 @@ export default {
       controls: null,
       modelGroup: null,
       model: null,
+      groundPlane: null,
 
       raycaster: new THREE.Raycaster(),
       mouse: new THREE.Vector2(),
@@ -102,24 +88,22 @@ export default {
       loading: true,
       loadingProgress: 0,
 
-      // 新增调试面板绑定数据（初始值与 props 保持一致）
-      modelPosition: { x: 0, y: 0, z: 0 },
-      modelScale: { x: 1, y: 1, z: 1 },
+      debug: {
+        modelPosX: 0,
+        modelPosY: 0,
+        modelPosZ: 0,
+        modelScale: 1,
+        modelRotationY: 0,
 
-      cameraPosition: {
-        x: this.cameraConfig.position.x,
-        y: this.cameraConfig.position.y,
-        z: this.cameraConfig.position.z
-      },
-      cameraTarget: {
-        x: this.cameraConfig.target.x,
-        y: this.cameraConfig.target.y,
-        z: this.cameraConfig.target.z
-      },
+        cameraPosX: 50,
+        cameraPosY: 30,
+        cameraPosZ: 50,
+        cameraTargetX: 0,
+        cameraTargetY: 0,
+        cameraTargetZ: 0,
 
-      groundSize: this.groundSize,
-
-      groundPlane: null // 地面 Mesh 引用，方便更新大小
+        groundSize: this.groundSize
+      }
     }
   },
   computed: {
@@ -140,7 +124,8 @@ export default {
         borderRadius: '4px',
         fontSize: '14px',
         whiteSpace: 'nowrap',
-        userSelect: 'none'
+        userSelect: 'none',
+        zIndex: 200
       }
     }
   },
@@ -155,20 +140,17 @@ export default {
     this.cleanup()
     window.removeEventListener('resize', this.handleResize)
     this.$refs.container.removeEventListener('mousemove', this.onHover)
+    if (this.controls) this.controls.removeEventListener('change', this.onControlsChange)
   },
   methods: {
     initThreeJS() {
+      const w = this.$refs.container.clientWidth
+      const h = this.$refs.container.clientHeight
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(this.backgroundColor)
 
-      const w = this.$refs.container.clientWidth
-      const h = this.$refs.container.clientHeight
       this.camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 5000)
-      this.camera.position.set(
-        this.cameraConfig.position.x,
-        this.cameraConfig.position.y,
-        this.cameraConfig.position.z
-      )
+      this.camera.position.set(this.debug.cameraPosX, this.debug.cameraPosY, this.debug.cameraPosZ)
 
       this.renderer = new THREE.WebGLRenderer({ antialias: true })
       this.renderer.setSize(w, h)
@@ -183,22 +165,19 @@ export default {
       this.modelGroup = new THREE.Group()
       this.scene.add(this.modelGroup)
 
-      this.scene.add(new THREE.AxesHelper(1000))
-
       if (this.showControls) {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement)
         this.controls.minPolarAngle = THREE.MathUtils.degToRad(10)
         this.controls.maxPolarAngle = THREE.MathUtils.degToRad(75)
         this.controls.enablePan = false
         this.controls.enableZoom = true
-        const target = this.cameraConfig.target
-        this.controls.target.set(target.x, target.y, target.z)
+        this.controls.target.set(this.debug.cameraTargetX, this.debug.cameraTargetY, this.debug.cameraTargetZ)
         this.controls.update()
+        this.controls.addEventListener('change', this.onControlsChange)
       }
 
       this.animate()
     },
-
     loadModel() {
       const loader = new FBXLoader()
       loader.load(
@@ -207,56 +186,32 @@ export default {
           const sanitizeMaterial = mat => {
             if (!mat || !mat.isMaterial) return mat
             const unsupported = ['.dds', '.exr']
-            const keys = [
-              'map', 'aoMap', 'emissiveMap', 'bumpMap',
-              'normalMap', 'roughnessMap', 'metalnessMap',
-              'alphaMap', 'displacementMap'
-            ]
+            const keys = ['map', 'aoMap', 'emissiveMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'displacementMap']
             keys.forEach(key => {
               const tex = mat[key]
-              if (!tex) return
               const url = tex?.image?.src || ''
-              if (!tex.image || unsupported.some(ext => url.endsWith(ext))) {
-                console.warn(`[贴图移除] ${key} 格式不支持：${url}`)
+              if (!tex || unsupported.some(ext => url.endsWith(ext))) {
                 mat[key] = null
               } else {
                 tex.flipY = false
                 tex.needsUpdate = true
               }
             })
-
             if (!mat.map && mat.color) {
               mat.colorWrite = true
               mat.needsUpdate = true
             }
-
             mat.side = THREE.DoubleSide
-            mat.needsUpdate = true
             return mat
           }
 
           fbx.traverse(child => {
             if (child.isMesh) {
-              child.material = Array.isArray(child.material)
-                ? child.material.map(sanitizeMaterial)
-                : sanitizeMaterial(child.material)
+              child.material = Array.isArray(child.material) ? child.material.map(sanitizeMaterial) : sanitizeMaterial(child.material)
               child.castShadow = true
               child.receiveShadow = true
             }
           })
-
-          fbx.traverse(child => {
-            if (child.isMesh) {
-              const mats = Array.isArray(child.material) ? child.material : [child.material];
-              mats.forEach(mat => {
-                console.group(`材质: ${mat.name}`);
-                ['map', 'aoMap', 'emissiveMap', 'normalMap'].forEach(key => {
-                  console.log(key + ':', mat[key]?.image?.src || '无');
-                });
-                console.groupEnd();
-              });
-            }
-          });
 
           const box = new THREE.Box3().setFromObject(fbx)
           const size = box.getSize(new THREE.Vector3())
@@ -271,19 +226,14 @@ export default {
           this.model = fbx
           this.modelGroup.add(fbx)
 
-          // 初始化调试面板中的模型位置和缩放，保证显示一致
-          this.modelPosition.x = fbx.position.x
-          this.modelPosition.y = fbx.position.y
-          this.modelPosition.z = fbx.position.z
-          this.modelScale.x = fbx.scale.x
-          this.modelScale.y = fbx.scale.y
-          this.modelScale.z = fbx.scale.z
+          this.debug.modelPosX = fbx.position.x
+          this.debug.modelPosY = fbx.position.y
+          this.debug.modelPosZ = fbx.position.z
 
           if (this.autoCamera) this.fitCameraToObject()
 
-          // 添加地面，使用传入的 groundSize
           if (this.groundTextureUrl) {
-            this.addGroundPlane(this.groundSize)
+            this.addGroundPlane(this.debug.groundSize)
           }
 
           this.loading = false
@@ -297,49 +247,30 @@ export default {
         }
       )
     },
-
-    // 新增参数 groundSize 以便调试面板调用
     addGroundPlane(size) {
-      const box = new THREE.Box3().setFromObject(this.modelGroup)
-      const minY = box.min.y
+      if (this.groundPlane) {
+        this.modelGroup.remove(this.groundPlane)
+        this.groundPlane.geometry.dispose()
+        this.groundPlane = null
+      }
       const loader = new THREE.TextureLoader()
+      loader.load(this.groundTextureUrl, tex => {
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
+        tex.flipY = false
+        tex.encoding = THREE.sRGBEncoding
+        tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy() || 1
 
-      loader.load(this.groundTextureUrl, texture => {
-        texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping
-        texture.flipY = false
-        texture.encoding = THREE.sRGBEncoding
-        texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy?.() || 1
-        texture.magFilter = THREE.LinearFilter
-        texture.minFilter = THREE.LinearMipMapLinearFilter
-
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          side: THREE.DoubleSide,
-          transparent: false,
-        })
-
-        // 先移除旧底面（如果有）
-        if (this.groundPlane) {
-          this.modelGroup.remove(this.groundPlane)
-          this.groundPlane.geometry.dispose()
-          this.groundPlane.material.dispose()
-          this.groundPlane = null
-        }
-
-        const geometry = new THREE.PlaneGeometry(size, size)
-        const plane = new THREE.Mesh(geometry, material)
+        const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+        const geo = new THREE.PlaneGeometry(size, size)
+        const plane = new THREE.Mesh(geo, mat)
         plane.rotation.x = -Math.PI / 2
-        plane.position.y = minY - 0.1
-        plane.receiveShadow = false
+        const box = new THREE.Box3().setFromObject(this.modelGroup)
+        plane.position.y = box.min.y - 0.1
         plane.userData.isGround = true
-
+        this.groundPlane = plane
         this.modelGroup.add(plane)
-        this.groundPlane = plane // 保存引用
-      }, undefined, err => {
-        console.error('地面贴图加载失败', err)
       })
     },
-
     fitCameraToObject() {
       const box = new THREE.Box3().setFromObject(this.modelGroup)
       const center = box.getCenter(new THREE.Vector3())
@@ -350,41 +281,26 @@ export default {
       if (this.controls) {
         this.controls.target.copy(center)
         this.controls.update()
-
-        // 同步调试面板
-        this.cameraPosition.x = this.camera.position.x
-        this.cameraPosition.y = this.camera.position.y
-        this.cameraPosition.z = this.camera.position.z
-        this.cameraTarget.x = this.controls.target.x
-        this.cameraTarget.y = this.controls.target.y
-        this.cameraTarget.z = this.controls.target.z
       }
     },
-
     onHover(event) {
       const rect = this.$refs.container.getBoundingClientRect()
       this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
-
       this.raycaster.setFromCamera(this.mouse, this.camera)
       const intersects = this.raycaster.intersectObjects(this.modelGroup.children, true)
-
       if (intersects.length > 0) {
         const mesh = intersects[0].object
-
         if (mesh.userData.isGround) return
-
         if (this.selectedMesh !== mesh) {
           if (this.selectedMesh?.material?.transparent) {
             this.selectedMesh.material.opacity = 1
             this.selectedMesh.material.transparent = false
           }
-
           if (mesh.material && 'opacity' in mesh.material) {
             mesh.material.transparent = true
             mesh.material.opacity = 0.3
           }
-
           this.selectedMesh = mesh
           this.hoverName = mesh.name || '未命名模块'
         }
@@ -393,12 +309,10 @@ export default {
           this.selectedMesh.material.opacity = 1
           this.selectedMesh.material.transparent = false
         }
-
         this.selectedMesh = null
         this.hoverName = ''
       }
     },
-
     animate() {
       requestAnimationFrame(this.animate)
       if (this.controls) this.controls.update()
@@ -413,7 +327,6 @@ export default {
       }
       this.renderer.render(this.scene, this.camera)
     },
-
     handleResize() {
       const w = this.$refs.container.clientWidth
       const h = this.$refs.container.clientHeight
@@ -421,74 +334,45 @@ export default {
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(w, h)
     },
-
     cleanup() {
       if (this.renderer?.domElement) {
         this.$refs.container.removeChild(this.renderer.domElement)
       }
     },
-
-    // 新增方法，更新模型位置
-    updateModelPosition() {
-      if (this.model) {
-        this.model.position.set(
-          this.modelPosition.x,
-          this.modelPosition.y,
-          this.modelPosition.z
-        )
-      }
-    },
-    // 更新模型缩放
-    updateModelScale() {
-      if (this.model) {
-        this.model.scale.set(
-          this.modelScale.x,
-          this.modelScale.y,
-          this.modelScale.z
-        )
-      }
-    },
-    // 更新相机位置
-    updateCameraPosition() {
-      if (this.camera) {
-        this.camera.position.set(
-          this.cameraPosition.x,
-          this.cameraPosition.y,
-          this.cameraPosition.z
-        )
-        if (this.controls) {
-          this.controls.update()
-        }
-      }
-    },
-    // 更新相机观测点（target）
-    updateCameraTarget() {
-      if (this.controls) {
-        this.controls.target.set(
-          this.cameraTarget.x,
-          this.cameraTarget.y,
-          this.cameraTarget.z
-        )
-        this.controls.update()
-      }
-    },
-    // 更新地面大小
-    updateGroundSize() {
-      if (this.groundSize < 1) {
-        this.groundSize = 1
-      }
-      this.addGroundPlane(this.groundSize)
+    onControlsChange() {
+      const p = this.camera.position
+      const t = this.controls.target
+      this.debug.cameraPosX = +p.x.toFixed(2)
+      this.debug.cameraPosY = +p.y.toFixed(2)
+      this.debug.cameraPosZ = +p.z.toFixed(2)
+      this.debug.cameraTargetX = +t.x.toFixed(2)
+      this.debug.cameraTargetY = +t.y.toFixed(2)
+      this.debug.cameraTargetZ = +t.z.toFixed(2)
     }
+  },
+  watch: {
+    'debug.modelPosX'(v) { this.modelGroup.position.x = v },
+    'debug.modelPosY'(v) { this.modelGroup.position.y = v },
+    'debug.modelPosZ'(v) { this.modelGroup.position.z = v },
+    'debug.modelScale'(v) { this.modelGroup.scale.set(v, v, v) },
+    'debug.modelRotationY'(v) { this.modelGroup.rotation.y = THREE.MathUtils.degToRad(v) },
+    'debug.cameraPosX'(v) { this.camera.position.x = v },
+    'debug.cameraPosY'(v) { this.camera.position.y = v },
+    'debug.cameraPosZ'(v) { this.camera.position.z = v },
+    'debug.cameraTargetX'(v) { this.controls.target.x = v; this.controls.update() },
+    'debug.cameraTargetY'(v) { this.controls.target.y = v; this.controls.update() },
+    'debug.cameraTargetZ'(v) { this.controls.target.z = v; this.controls.update() },
+    'debug.groundSize'(v) { this.addGroundPlane(v) }
   }
 }
 </script>
 
 <style scoped>
 .fbx-viewer-wrapper {
-
   position: relative;
   width: 100%;
   height: 100%;
+  min-height: 200px;
   overflow: hidden;
 }
 
@@ -497,37 +381,89 @@ export default {
   height: 100%;
 }
 
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  color: #fff;
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+.name-label {
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #00f;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  user-select: none;
+  z-index: 100;
+}
+
+/* 调试面板样式 */
 .debug-panel {
   position: absolute;
   top: 10px;
   right: 10px;
+  width: 260px;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 8px;
   padding: 10px;
-  font-size: 12px;
-  max-width: 250px;
-  z-index: 1000;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  font-size: 13px;
 }
 
 .debug-panel h4 {
-  margin: 0 0 5px;
-  font-size: 14px;
+  margin: 0 0 8px;
+  text-align: center;
 }
 
-.debug-panel section {
+.debug-panel .group {
   margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .debug-panel label {
-  display: block;
-  margin: 2px 0;
+  flex: 1 1 48%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.debug-panel input {
-  width: 100%;
-  padding: 2px 4px;
-  font-size: 12px;
-  box-sizing: border-box;
+.debug-panel input[type="range"] {
+  flex: 1;
 }
 </style>
