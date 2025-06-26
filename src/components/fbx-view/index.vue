@@ -242,7 +242,7 @@ export default {
       const loader = new THREE.TextureLoader()
       loader.load(this.groundTextureUrl, tex => {
         tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
-        tex.flipY = false
+        tex.flipY = true
         tex.encoding = THREE.sRGBEncoding
         const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
         const geo = new THREE.PlaneGeometry(size, size)
