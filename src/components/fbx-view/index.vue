@@ -8,19 +8,19 @@
       <div class="loading-text">{{ loadingProgress }}%</div>
     </div>
 
-    <!-- 悬浮标签，显示 Hover 名称 -->
+    <!-- 悬浮标签 -->
     <div v-if="hoverName" :style="labelStyle" class="name-label">{{ hoverName }}</div>
 
-    <!-- 新增：调试面板 -->
+    <!-- ✅ 调试面板 -->
     <div class="debug-panel">
       <h4>调试面板</h4>
       <div class="group">
-        <label>模型位置 X: <input type="number" v-model.number="debug.modelPosX" step="1" /></label>
-        <label>Y: <input type="number" v-model.number="debug.modelPosY" step="1" /></label>
-        <label>Z: <input type="number" v-model.number="debug.modelPosZ" step="1" /></label>
+        <label>X: <input type="number" v-model.number="debug.modelPosX" /></label>
+        <label>Y: <input type="number" v-model.number="debug.modelPosY" /></label>
+        <label>Z: <input type="number" v-model.number="debug.modelPosZ" /></label>
       </div>
       <div class="group">
-        <label>缩放比例: <input type="range" min="0.1" max="10" step="0.1" v-model.number="debug.modelScale" /></label>
+        <label>缩放: <input type="range" min="0.1" max="10" step="0.1" v-model.number="debug.modelScale" /></label>
         <span>{{ debug.modelScale.toFixed(1) }}</span>
       </div>
       <div class="group">
@@ -29,19 +29,19 @@
       </div>
       <hr />
       <div class="group">
-        <label>相机位置 X: <input type="number" v-model.number="debug.cameraPosX" step="1" /></label>
-        <label>Y: <input type="number" v-model.number="debug.cameraPosY" step="1" /></label>
-        <label>Z: <input type="number" v-model.number="debug.cameraPosZ" step="1" /></label>
+        <label>相机位置 X: <input type="number" v-model.number="debug.cameraPosX" /></label>
+        <label>Y: <input type="number" v-model.number="debug.cameraPosY" /></label>
+        <label>Z: <input type="number" v-model.number="debug.cameraPosZ" /></label>
       </div>
       <div class="group">
-        <label>相机目标 X: <input type="number" v-model.number="debug.cameraTargetX" step="1" /></label>
-        <label>Y: <input type="number" v-model.number="debug.cameraTargetY" step="1" /></label>
-        <label>Z: <input type="number" v-model.number="debug.cameraTargetZ" step="1" /></label>
+        <label>目标点 X: <input type="number" v-model.number="debug.cameraTargetX" /></label>
+        <label>Y: <input type="number" v-model.number="debug.cameraTargetY" /></label>
+        <label>Z: <input type="number" v-model.number="debug.cameraTargetZ" /></label>
       </div>
       <hr />
       <div class="group">
-        <label>底图大小: <input type="range" min="10" max="2000" step="10" v-model.number="debug.groundSize" /></label>
-        <span>{{ debug.groundSize }}</span>
+        <label>底图大小: <input type="range" min="100" max="3000" step="10" v-model.number="debug.groundSize" /></label>
+        <span>{{ debug.groundSize }}m</span>
       </div>
     </div>
   </div>
@@ -55,8 +55,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 export default {
   name: 'FbxViewer',
   props: {
-    modelUrl: { type: String, required: true, default: 'https://edu-20230301.oss-cn-beijing.aliyuncs.com/%211RUBIXCUBE.fbx' },
-    groundTextureUrl: { type: String, default: 'https://img1.baidu.com/it/u=1029958023,1900764162&fm=253&fmt=auto&app=138&f=JPEG?w=889&h=500' },
+    modelUrl: { type: String, required: true },
+    groundTextureUrl: { type: String, default: '' },
     backgroundColor: { type: String, default: '#f0f0f0' },
     showControls: { type: Boolean, default: true },
     autoCamera: { type: Boolean, default: false },
@@ -76,7 +76,7 @@ export default {
       renderer: null,
       controls: null,
       modelGroup: null,
-      model: null,
+      modelContainer: null, // ✅ 专门控制模型的组
       groundPlane: null,
 
       raycaster: new THREE.Raycaster(),
@@ -125,14 +125,13 @@ export default {
         fontSize: '14px',
         whiteSpace: 'nowrap',
         userSelect: 'none',
-        zIndex: 200
+        zIndex: 100
       }
     }
   },
   mounted() {
     this.initThreeJS()
     this.loadModel()
-
     window.addEventListener('resize', this.handleResize)
     this.$refs.container.addEventListener('mousemove', this.onHover)
   },
@@ -146,6 +145,7 @@ export default {
     initThreeJS() {
       const w = this.$refs.container.clientWidth
       const h = this.$refs.container.clientHeight
+
       this.scene = new THREE.Scene()
       this.scene.background = new THREE.Color(this.backgroundColor)
 
@@ -162,8 +162,13 @@ export default {
       dirLight.position.set(100, 200, 100)
       this.scene.add(dirLight)
 
+      // 外部容器组
       this.modelGroup = new THREE.Group()
       this.scene.add(this.modelGroup)
+
+      // ✅ 模型容器组（可移动）
+      this.modelContainer = new THREE.Group()
+      this.modelGroup.add(this.modelContainer)
 
       if (this.showControls) {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement)
@@ -183,36 +188,18 @@ export default {
       loader.load(
         this.modelUrl,
         fbx => {
-          const sanitizeMaterial = mat => {
-            if (!mat || !mat.isMaterial) return mat
-            const unsupported = ['.dds', '.exr']
-            const keys = ['map', 'aoMap', 'emissiveMap', 'bumpMap', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'displacementMap']
-            keys.forEach(key => {
-              const tex = mat[key]
-              const url = tex?.image?.src || ''
-              if (!tex || unsupported.some(ext => url.endsWith(ext))) {
-                mat[key] = null
-              } else {
-                tex.flipY = false
-                tex.needsUpdate = true
-              }
-            })
-            if (!mat.map && mat.color) {
-              mat.colorWrite = true
-              mat.needsUpdate = true
-            }
-            mat.side = THREE.DoubleSide
-            return mat
-          }
-
           fbx.traverse(child => {
             if (child.isMesh) {
-              child.material = Array.isArray(child.material) ? child.material.map(sanitizeMaterial) : sanitizeMaterial(child.material)
               child.castShadow = true
               child.receiveShadow = true
+              child.material.side = THREE.DoubleSide
+              if (child.material?.map) {
+                child.material.map.flipY = false
+              }
             }
           })
 
+          // 自动旋转方向（可选）
           const box = new THREE.Box3().setFromObject(fbx)
           const size = box.getSize(new THREE.Vector3())
           const dims = [size.x, size.y, size.z]
@@ -220,15 +207,14 @@ export default {
           if (minIndex === 0) fbx.rotation.z = Math.PI / 2
           if (minIndex === 2) fbx.rotation.x = -Math.PI / 2
 
+          // 模型贴地
           box.setFromObject(fbx)
           fbx.position.y = -box.min.y
 
-          this.model = fbx
-          this.modelGroup.add(fbx)
-
-          this.debug.modelPosX = fbx.position.x
-          this.debug.modelPosY = fbx.position.y
-          this.debug.modelPosZ = fbx.position.z
+          this.modelContainer.add(fbx)
+          this.debug.modelPosX = this.modelContainer.position.x
+          this.debug.modelPosY = this.modelContainer.position.y
+          this.debug.modelPosZ = this.modelContainer.position.z
 
           if (this.autoCamera) this.fitCameraToObject()
 
@@ -242,14 +228,14 @@ export default {
           this.loadingProgress = Math.round((xhr.loaded / xhr.total) * 100)
         },
         err => {
-          console.error('FBX 加载失败:', err)
+          console.error('模型加载失败:', err)
           this.loading = false
         }
       )
     },
     addGroundPlane(size) {
       if (this.groundPlane) {
-        this.modelGroup.remove(this.groundPlane)
+        this.scene.remove(this.groundPlane)
         this.groundPlane.geometry.dispose()
         this.groundPlane = null
       }
@@ -258,17 +244,14 @@ export default {
         tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping
         tex.flipY = false
         tex.encoding = THREE.sRGBEncoding
-        tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy() || 1
-
         const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
         const geo = new THREE.PlaneGeometry(size, size)
         const plane = new THREE.Mesh(geo, mat)
         plane.rotation.x = -Math.PI / 2
-        const box = new THREE.Box3().setFromObject(this.modelGroup)
-        plane.position.y = box.min.y - 0.1
+        plane.position.y = -0.1
         plane.userData.isGround = true
         this.groundPlane = plane
-        this.modelGroup.add(plane)
+        this.scene.add(plane)
       })
     },
     fitCameraToObject() {
@@ -282,6 +265,16 @@ export default {
         this.controls.target.copy(center)
         this.controls.update()
       }
+    },
+    onControlsChange() {
+      const p = this.camera.position
+      const t = this.controls.target
+      this.debug.cameraPosX = +p.x.toFixed(2)
+      this.debug.cameraPosY = +p.y.toFixed(2)
+      this.debug.cameraPosZ = +p.z.toFixed(2)
+      this.debug.cameraTargetX = +t.x.toFixed(2)
+      this.debug.cameraTargetY = +t.y.toFixed(2)
+      this.debug.cameraTargetZ = +t.z.toFixed(2)
     },
     onHover(event) {
       const rect = this.$refs.container.getBoundingClientRect()
@@ -338,24 +331,14 @@ export default {
       if (this.renderer?.domElement) {
         this.$refs.container.removeChild(this.renderer.domElement)
       }
-    },
-    onControlsChange() {
-      const p = this.camera.position
-      const t = this.controls.target
-      this.debug.cameraPosX = +p.x.toFixed(2)
-      this.debug.cameraPosY = +p.y.toFixed(2)
-      this.debug.cameraPosZ = +p.z.toFixed(2)
-      this.debug.cameraTargetX = +t.x.toFixed(2)
-      this.debug.cameraTargetY = +t.y.toFixed(2)
-      this.debug.cameraTargetZ = +t.z.toFixed(2)
     }
   },
   watch: {
-    'debug.modelPosX'(v) { this.modelGroup.position.x = v },
-    'debug.modelPosY'(v) { this.modelGroup.position.y = v },
-    'debug.modelPosZ'(v) { this.modelGroup.position.z = v },
-    'debug.modelScale'(v) { this.modelGroup.scale.set(v, v, v) },
-    'debug.modelRotationY'(v) { this.modelGroup.rotation.y = THREE.MathUtils.degToRad(v) },
+    'debug.modelPosX'(v) { this.modelContainer.position.x = v },
+    'debug.modelPosY'(v) { this.modelContainer.position.y = v },
+    'debug.modelPosZ'(v) { this.modelContainer.position.z = v },
+    'debug.modelScale'(v) { this.modelContainer.scale.set(v, v, v) },
+    'debug.modelRotationY'(v) { this.modelContainer.rotation.y = THREE.MathUtils.degToRad(v) },
     'debug.cameraPosX'(v) { this.camera.position.x = v },
     'debug.cameraPosY'(v) { this.camera.position.y = v },
     'debug.cameraPosZ'(v) { this.camera.position.z = v },
@@ -366,13 +349,11 @@ export default {
   }
 }
 </script>
-
 <style scoped>
 .fbx-viewer-wrapper {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 200px;
   overflow: hidden;
 }
 
@@ -430,7 +411,6 @@ export default {
   z-index: 100;
 }
 
-/* 调试面板样式 */
 .debug-panel {
   position: absolute;
   top: 10px;
