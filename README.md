@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Lcap Frontend Library Demo
 
 ## 安装
@@ -48,3 +49,7 @@ npm run build
 * 单元测试工具 [vitest](https://cn.vitest.dev/guide/)
 * UI demo 调试 [storybook](https://storybook.js.org/docs/get-started/install)
 
+=======
+# library
+my-library
+>>>>>>> b3a207af3c1176807dc30b98a54d8bb8ef31d8a0
