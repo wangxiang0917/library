@@ -76,6 +76,15 @@ namespace extensions.fbx_view.viewComponents {
     groundTextureUrl: nasl.core.String = '';
 
     @Prop({
+      title: '材质默认颜色',
+      description: '材质默认颜色',
+      setter: {
+        concept: 'InputSetter'
+      }
+    })
+    defaultMaterialColor: nasl.core.String = '';
+
+    @Prop({
       title: '底图大小',
       description: '底图大小',
       setter: {

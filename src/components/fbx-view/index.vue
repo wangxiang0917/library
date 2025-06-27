@@ -55,6 +55,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 export default {
   name: 'FbxViewer',
   props: {
+    defaultMaterialColor: { type: String, default: '#ffffff' },
     modelUrl: { type: String, required: true },
     groundTextureUrl: { type: String, default: '' },
     backgroundColor: { type: String, default: '#f0f0f0' },
@@ -189,12 +190,36 @@ export default {
         this.modelUrl,
         fbx => {
           fbx.traverse(child => {
+            // 遍历 FBX 模型中的每个子对象
             if (child.isMesh) {
-              child.castShadow = true
-              child.receiveShadow = true
-              child.material.side = THREE.DoubleSide
-              if (child.material?.map) {
-                child.material.map.flipY = false
+              // 只处理网格对象 Mesh 类型
+
+              child.castShadow = true // 开启投射阴影
+              child.receiveShadow = true // 开启接受阴影
+
+              let mat = child.material // 获取当前 Mesh 的材质
+
+              // 如果材质存在贴图
+              if (mat?.map) {
+                mat.map.flipY = false // 贴图上下方向不翻转（FBX贴图通常需要设置）
+                mat.map.needsUpdate = true // 通知材质贴图需要更新
+              }
+
+              mat.side = THREE.DoubleSide // 材质双面渲染，保证模型正反面都可见
+              mat.needsUpdate = true // 通知材质需要更新
+
+              // 判断当前材质是否缺少贴图且颜色为空或者是纯黑色
+              const hasMap = mat?.map // 是否存在贴图
+              const hasColor = mat?.color // 是否存在颜色属性
+
+              if (!hasMap && (!hasColor || (hasColor && mat.color.equals(new THREE.Color(0x000000))))) {
+                // 如果没有贴图，也没有颜色或者颜色是黑色，则替换材质为默认颜色材质
+                child.material = new THREE.MeshStandardMaterial({
+                  color: defaultMaterialColor, // 使用预设的默认颜色
+                  roughness: 0.8, // 粗糙度，数值越大表面越哑光
+                  metalness: 0.2, // 金属度，数值越大表面越金属感
+                  side: THREE.DoubleSide // 双面渲染
+                })
               }
             }
           })
